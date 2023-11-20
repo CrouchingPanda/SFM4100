@@ -46,17 +46,17 @@ int16_t readFlowInSCCM() {
   uint8_t checksum = TinyWireM.read();
 
   static int16_t flowInSCCM = 0;
-  if (isCRCValid(highByte, lowByte, checksum)) flowInSCCM = (highByte << 8) | lowByte;
+  if (getChecksum(highByte, lowByte) == checksum) flowInSCCM = (highByte << 8) | lowByte;
   return flowInSCCM;
 }
 
-bool isCRCValid(uint8_t highByte, uint8_t lowByte, uint8_t checksum) {
+uint8_t getChecksum(uint8_t highByte, uint8_t lowByte) {
   uint8_t crc = 0;
   crc ^= highByte;
   crc = doPolynomialDivision(crc);
   crc ^= lowByte;
   crc = doPolynomialDivision(crc);
-  return crc == checksum;
+  return crc;
 }
 
 uint8_t doPolynomialDivision(uint8_t dividend) {
