@@ -4,7 +4,7 @@
 // datasheet
 static constexpr uint8_t SFM4100_I2C_ADDRESS = 0x01;
 static constexpr uint8_t SFM4100_READ_REQUEST = 0xF1;
-static constexpr uint16_t SFM4100_CRC_POLYNOMIAL = 0x131;
+static constexpr uint16_t SFM4100_CRC_POLYNOMIAL = 0b100110001; // x^8 + x^5 + x^4 + 1
 
 static constexpr uint8_t OLED_WIDTH = 128; // device-dependent
 static constexpr uint8_t OLED_HEIGHT = 32; // device-dependent
@@ -41,32 +41,33 @@ int16_t readFlowInSCCM() {
   TinyWireM.endTransmission();
 
   TinyWireM.requestFrom(SFM4100_I2C_ADDRESS, 3);
-  uint8_t flowBytes[2];
-  flowBytes[0] = TinyWireM.read();
-  flowBytes[1] = TinyWireM.read();
+  uint8_t highByte = TinyWireM.read();
+  uint8_t lowByte = TinyWireM.read();
   uint8_t checksum = TinyWireM.read();
 
   static int16_t flowInSCCM = 0;
-  if (isCRCValid(flowBytes, checksum)) flowInSCCM = flowBytes[1] | (flowBytes[0] << 8);
+  if (getChecksum(highByte, lowByte) == checksum) flowInSCCM = (highByte << 8) | lowByte;
   return flowInSCCM;
 }
 
-bool isCRCValid(uint8_t data[], uint8_t checksum) {
+uint8_t getChecksum(uint8_t highByte, uint8_t lowByte) {
   uint8_t crc = 0;
-  uint8_t byteCount;
-  
-  for (byteCount = 0; byteCount < 2; byteCount++) {
-    crc ^= (data[byteCount]);
-    for (uint8_t bit = 8; bit > 0; --bit) {
-      if (crc & 0x80) {
-        crc = (crc << 1) ^ SFM4100_CRC_POLYNOMIAL;
-      } else {
-        crc = (crc << 1);
-      }
-    }  
+  crc ^= highByte;
+  crc = doPolynomialDivision(crc);
+  crc ^= lowByte;
+  crc = doPolynomialDivision(crc);
+  return crc;
+}
+
+uint8_t doPolynomialDivision(uint8_t dividend) {
+  for (uint8_t bit = 8; bit > 0; --bit) {
+    if (dividend & 0x80) {
+      dividend = (dividend << 1) ^ SFM4100_CRC_POLYNOMIAL;
+    } else {
+      dividend = (dividend << 1);
+    }
   }
-  
-  return crc == checksum;
+  return dividend;
 }
 
 FlowUnit getFlowUnit() {
